@@ -1,0 +1,128 @@
+---
+title: "Week 2 Lab"
+author: "Emily Shepherd"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/burrisfaculty/Desktop/DSCode/DSCI609")
+library(stargazer)
+```
+
+The data we are exploring consists of twelve variables related to 14 countries that have been democracies since World War II
+
+1.  Percent Reduction of Gini Coefficient(Gini_Reduction): The average percent reduction of the gini coefficient is reported for each county. The gini coefficient is a measure of inequality. It varies from 0 to 1. The value is 0 when income is evenly distributed. The value is 1 when all income is held by the top decile.
+
+2.  Pretax and Transfer Inequality(Wage_Ineq): This is measured as the proportion of an earner in the 90th percentile of the earners with median income.
+
+3.  Partinsanship: The measure of partinsanship varies from 0 to 1, with left being 0 and right being 1. A perfectly balanced government would have a measure of 0.5.
+
+4.  Voter Turnout: The percent of eligible citizens who actually vote in elections.
+
+5.  Unionization: This is a measure of union density within the country.
+
+6.  Constitutional Veto Points (Veto_Points):This is a composite measure of availability of a veto option, based on the structure of government.
+
+7.  Electoral System: Each country's government was categorized as majoritarian or proportional. A country with a majoritarian system had a value of 0 and proportional had a 1.
+
+8.  Left Fragmentation (Left_Frag): This is calculated by one minus the sum of the squared seat shares of left-wing parties.
+
+9.  Right Overrepresentation (Right_Over): The difference between the legistlative seat share of right-wing parties and thier share of the vote.
+
+10. Real per capita Income (Inc_per_Capita): This is the income per capita in 1985 dollars. 
+
+11. Female Labor Force Participation (Fem_Labor):This is the percentage of female workforce participants in the working age population.
+
+12. Unemployment: This is the unemployment rate.
+
+```{r, include = FALSE}
+#Create Vectors
+Country <- c("Australia", "Austria", "Belgium", "Canada",
+            "Denmark", "Finland", "France", "Germany",
+            "Ireland", "Italy", "Japan", "Netherlands",
+            "New Zealand", "Norway", "Sweden", "U.K.", "U.S.")
+#Percent Reduction of Gini Coefficient(Gini_Reduction): The average percent reduction of the gini coefficient is reported for each county. The gini coefficient is a measure of inequality. It varies from 0 to 1. The value is 0 when income is evenly distributed. The value is 1 when all income is held by the top decile.
+Gini_Reduction <- c(23.97, NA, 35.56, 21.26, 37.89, 35.17,
+                     25.36, 18.70, NA, 12.13, NA, 30.59, NA, 27.52, 37.89, 22.67, 17.60)
+#Pretax and Transfer Inequality(Wage_Ineq): This is measured as the proportion of an earner in the 90th percentile of the earners with median income.
+Wage_Ineq <- c(1.7, NA, 1.64, 1.82, 1.58, 1.68, 1.94, 1.70,
+               NA,1.63, NA, 1.64, NA, 1.5, 1.58, 1.78,2.07)
+
+#Partinsanship: The measure of partinsanship varies from 0 to 1, with left being 0 and right being 1. A perfectly balanced government would have a measure of 0.5.
+Partinsanship <- c(0.47,0.30, 0.36,0.36, 0.35, 0.30, 0.40, 0.39, 0.42, 0.37,
+                   0.78, 0.31, 0.43, 0.15, 0.17, 0.52, 0.40)
+
+#Voter Turnout: The percent of eligible citizens who actually vote in elections.
+Voter_Turnout <- c(84, 87, 88, 68, 84, 79, 66, 81, 75, 93, 71, 85, 85, 80, 84, 76, 56)
+
+#Unionization: This is a measure of union density within the country.
+Unionization <- c(46, 54, 48, 30, 67, 53, 18, 34, 48, 34, 31, 33, 23, 54, 67, 42, 23)
+
+#Constitutional Veto Points (Veto_Points):This is a composite measure of availability of a veto option, based on the structure of government.
+Veto_Points <- c(3, 1, 1, 2, 0, 1, 1, 4, 0, 1, 1, 1, 0, 0, 0, 0, 5)
+
+#Electoral System: Each country's government was categorized as majoritarian or proportional. A country with a majoritarian system had a value of 0 and proportional had a 1.
+Electoral_System <-c(0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1,1,0,0)
+
+#Left Fragmentation (Left_Frag): This is calculated by one minus the sum of the squared seat shares of left-wing parties.
+Left_Frag <- c(-0.39, -0.18, -0.34, 0.18, -0.40, -0.18, 0.10, -0.13, -0.33,
+               0.20, 0.22, 0.18, -0.40, -0.02, -0.40, 0.08, 0)
+#Right Overrepresentation (Right_Over): The difference between the legistlative seat share of right-wing parties and thier share of the vote.
+Right_Over <- c(0.10, 0.04,0.27, -0.11, 0.07, 0.09, 0.09, 0.15, 0.70,
+                0.08, 0.28, -0.36, 0.98, -0.32, -0.03, 0.07, -0.17)
+
+# Real per capita Income (Inc_per_Capita): This is the income per capita in 1985 dollars.
+Inc_Per_Capita <- c(109099, 8311, 8949, 11670, 9982, 8661, 9485, 9729,
+                    5807, 7777, 7918, 9269, NA, 9863, 9982, 9282, 13651)
+
+# Female Labor Force Participation (Fem_Labor):This is the percentage of female workforce participants in the working age population.
+Fem_Labor <- c(46, 51, 43, 48, 63, 66, 51, 51, 37, 38, 56, 35, 47, 52, 63, 54, 53)
+
+#Unemployment: This is the unemployment rate.
+Unemployment <- c(4.63, 2.76, 7.89, 6.91, 6.83, 4.48, 4.57, 4.86, 9.09,
+                  8.12, 1.77, 4.62, NA, 2.28, 6.83, 5.01, 5.74)
+mydata <- data.frame(cbind(Country, Gini_Reduction, Wage_Ineq, Partinsanship, Voter_Turnout,
+      Unionization, Veto_Points, Electoral_System, Left_Frag, Right_Over,
+      Inc_Per_Capita, Fem_Labor, Unemployment))
+#cast characters to doubles
+mydata$Fem_Labor <- as.double(mydata$Fem_Labor)
+mydata$Gini_Reduction <- as.double(mydata$Gini_Reduction)
+mydata$Wage_Ineq <- as.double(mydata$Wage_Ineq)
+mydata$Partinsanship <- as.double(mydata$Partinsanship)
+mydata$Voter_Turnout <- as.double(mydata$Voter_Turnout)
+mydata$Unionization <- as.double(mydata$Unionization)
+mydata$Veto_Points <- as.double(mydata$Veto_Points)
+mydata$Left_Frag <- as.double(mydata$Left_Frag)
+mydata$Right_Over <- as.double(mydata$Right_Over)
+mydata$Inc_Per_Capita <- as.double(mydata$Inc_Per_Capita)
+mydata$Unemployment <- as.double(mydata$Unemployment)
+```
+
+Below you will find the data frame for all the variables:
+
+```{r}
+mydata
+```
+Here are some summary statistics of Unemployment:
+
+```{r}
+mean(na.omit(mydata$Unemployment))
+median(na.omit(mydata$Unemployment))
+max(na.omit(mydata$Unemployment))
+```
+Here are some summary statistics of Real Income Per Capita:
+
+```{r}
+
+mean(na.omit(mydata$Inc_Per_Capita))
+median(na.omit(mydata$Inc_Per_Capita))
+max(na.omit(mydata$Inc_Per_Capita))
+```
+
+Below you will find a table of summary statistics for all twelve variables:
+
+```{r}
+stargazer(mydata, type = "text", title = "Descriptive Statistics", digits = 1, median = TRUE, out = "table.txt")
+```

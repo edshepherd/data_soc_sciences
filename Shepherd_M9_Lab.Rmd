@@ -1,0 +1,190 @@
+---
+title: "Module_9_Lab"
+author: "Emily Shepherd"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include =FALSE}
+setwd("/Users/burrisfaculty/Desktop/DSCode/DSCI609")
+library(lme4)
+library(haven)
+library(dplyr)
+library(ggplot2)
+library(lattice)
+mlmdta <- read_dta('daily_long_b.dta')
+mlmdta <- na.omit(mlmdta)
+
+```
+
+# Part 1: Explore the Data
+
+### Examine data with day number as the factor
+
+```{r, echo = FALSE, warning=FALSE, message = FALSE}
+#Examine Data according to day
+ggplot(data = mlmdta, aes(x = stress, y = negaff, color = as.factor(day))) +
+  geom_point() +
+  stat_smooth(method = "lm", fullrange = TRUE) +
+  xlab("Stress") + ylab("Negative Afffect") + facet_wrap(~day) +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14))
+```
+
+### Examine data with neuroticism as the factor
+
+```{r, echo = FALSE, message=FALSE}
+#Examine Data According to bfi_n
+ggplot(data = mlmdta, aes(x = stress, y = negaff, color = as.factor(bfi_n))) +
+  geom_point() +
+  stat_smooth(method = "lm", fullrange = TRUE) +
+  xlab("Stress") + ylab("Negative Afffect") + facet_wrap(~bfi_n) +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14))
+```
+
+### Group data by person and examine with neuroticism as the factor
+
+```{r, echo = FALSE, message= FALSE, warning = FALSE}
+person_level <- mlmdta %>%
+  group_by(id) %>%
+  summarise_at(vars(negaff, stress, bfi_n, stress_trait_c, stress_state, day), funs(n(),mean(., na.rm = TRUE)))
+ggplot(data = person_level, aes(x = stress_mean, y = negaff_mean, color = as.factor(bfi_n_mean))) +
+  geom_point() +
+  stat_smooth(method = "lm", fullrange = TRUE) +
+  xlab("Stress") + ylab("Negative Afffect") + facet_wrap(~bfi_n_mean) +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 14))
+```
+
+# Part 2: Create and Evaluate Models
+
+### Create multi-level model to predict negative affect based on stress (2 variables), neuroticism, and day with random y-intercept and factor person.
+
+```{r, echo = FALSE}
+model <- lmer(negaff ~  day + stress_trait_c + stress_state + bfi_n + (1| id), data = mlmdta)
+summary(model)
+
+mlmdta$FEPredictions <- fitted(model)
+ml_est <- coef(summary(model))[, "Estimate"]
+ml_se <- coef(summary(model))[, "Std. Error"]
+
+```
+
+#### Analysis of Model:
+
+**Fixed Effects:**
+
+(Intercept) The expected value of negative effect for a prototypical student on a typical day with typical stress variables and neuroticism is 2.209688.
+
+The t-values for day, neuroticism, and both stress variables are outside of the expected value, meaning we would reject the null hypothesis that no effect was observed for all of the variables.
+
+**Random Effects:**
+
+The standard deviation of the intercept is 0.4305 which means there is little variation in the between person differences in negative effects.
+
+### Original Plot
+
+```{r, echo=FALSE}
+palette(rainbow(10))
+
+gg <- ggplot(mlmdta, aes(y = negaff, x = day + stress_trait_c + stress_state + bfi_n)) + 
+  geom_smooth(method = lm, color = "black") +
+  geom_point(size = 1.5, alpha = 0.8, colour = factor(mlmdta$bfi_n)) +
+  theme(legend.position = 'none')
+print(gg)
+```
+
+### Predicted Plot
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+gg2<- ggplot(mlmdta, aes(y = negaff, x = day + stress_trait_c + stress_state + bfi_n)) + 
+  geom_line(aes(y = FEPredictions, color = as.factor(bfi_n))) +
+  geom_abline(slope = ml_est[2], intercept = ml_est[1], size = 1) +
+  geom_point(size = 1.5, alpha = 0.8, colour = factor(mlmdta$id)) + 
+  theme(legend.position = 'none')
+print(gg2)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data = mlmdta, aes(x = day + stress_trait_c + stress_state + bfi_n, y = negaff, group = factor(id), colour = 'gray'), legend = FALSE) +
+  geom_smooth(method = lm, se = FALSE, fullrange = FALSE, lty = 1, size = 0.5, color = "gray40") +
+  geom_smooth(aes(group = 1), method = lm, se = FALSE, fullrange = FALSE, lty = 1, size = 2, color = 'blue') +
+  xlab("day + stress_trait_c + stress_state + bfi_n") + ylab("Negative Affect") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size = 14),
+        plot.title = element_text(size = 18, hjust = 0.5)) +
+  ggtitle("Within-Person Association Plot")
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+dotplot(ranef(model, condvar = TRUE))
+```
+
+### Model with random y-intercept and random slope of both stress variables
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+model2 <- lmer(negaff ~  day + stress_trait_c + stress_state + bfi_n + (1 + stress_trait_c + stress_state| id), data = mlmdta)
+summary(model)
+mlmdta$FEPredictions <- fitted(model2)
+ml_est <- coef(summary(model))[, "Estimate"]
+ml_se <- coef(summary(model))[, "Std. Error"]
+```
+
+#### Analysis of Model:
+
+**Fixed Effects:**
+
+(Intercept) The expected value of negative effect for a prototypical student on a typical day with typical stress variables and neuroticism is 2.209688.
+
+The t-values for day, neuroticism, and both stress variables are outside of the expected value, meaning we would reject the null hypothesis that no effect was observed for all of the variables.
+
+**Random Effects:**
+
+The standard deviation of the intercept is 0.4305 which means there is little variation in the between person differences in negative effects.
+
+### Original Plot
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+gg2<- ggplot(mlmdta, aes(y = negaff, x = day + stress_trait_c + stress_state + bfi_n)) + 
+  geom_line(aes(y = FEPredictions, color = as.factor(bfi_n))) +
+  geom_abline(slope = ml_est[2], intercept = ml_est[1], size = 1) +
+  geom_point(size = 1.5, alpha = 0.8, colour = factor(mlmdta$id)) + 
+  theme(legend.position = 'none')
+print(gg2)
+```
+
+### Predicted Plot
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+gg2<- ggplot(mlmdta, aes(y = negaff, x = day + stress_trait_c + stress_state + bfi_n)) + 
+  geom_line(aes(y = FEPredictions, color = as.factor(bfi_n))) +
+  geom_abline(slope = ml_est[2], intercept = ml_est[1], size = 1) +
+  geom_point(size = 1.5, alpha = 0.8, colour = factor(mlmdta$id)) + 
+  theme(legend.position = 'none')
+print(gg2)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data = mlmdta, aes(x = day + stress_trait_c + stress_state + bfi_n, y = negaff, group = factor(id), colour = 'gray'), legend = FALSE) +
+  geom_smooth(method = lm, se = FALSE, fullrange = FALSE, lty = 1, size = 0.5, color = "gray40") +
+  geom_smooth(aes(group = 1), method = lm, se = FALSE, fullrange = FALSE, lty = 1, size = 2, color = 'blue') +
+  xlab("day + stress_trait_c + stress_state + bfi_n") + ylab("Negative Affect") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size = 14),
+        plot.title = element_text(size = 18, hjust = 0.5)) +
+  ggtitle("Within-Person Association Plot")
+dotplot(ranef(model2, condvar = TRUE))
+
+
+```

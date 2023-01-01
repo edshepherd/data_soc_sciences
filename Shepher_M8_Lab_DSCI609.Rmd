@@ -1,0 +1,270 @@
+---
+title: "Shepherd_M8_DSCI609"
+author: "Emily Shepherd"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+#Set working directory
+setwd("/Users/burrisfaculty/Desktop/DSCode/DSCI609/Module_7_Lab")
+#Imports
+library(ggplot2)
+library(ggpubr)
+library(tidyverse)
+library(broom)
+library(AICcmodavg)
+library(e1071)
+library(dplyr)
+library(usdata)
+
+#Read Data and Check
+crime.data <- read.csv("crimerate.csv")
+head(crime.data)
+income.data<-read.csv("finalincomebystate.csv")
+head(income.data)
+tail(income.data,15)
+unemployment.data<-read.csv("unemployment_county.csv")
+head(unemployment.data)
+tail(unemployment.data)
+#Manage Data and Combine Into 1 DataFrame
+clean.crime<-subset(crime.data, State != "UnitedStatesTotal")
+clean.crime <-clean.crime[with(clean.crime,order(State,Year)),]
+clean.income<-subset(income.data, State != "UnitedStates")
+clean.income<-subset(clean.income, State != "D.C.")
+clean.combine<-clean.income
+clean.combine$crime <- clean.crime$rate
+summary(unemployment.data$State)
+#unemployment.data<- na.omit(unemployment.data)
+unemployment.data$Labor.Force<-as.numeric(unemployment.data$Labor.Force)
+unemployment.data$Unemployed <- as.numeric(unemployment.data$Unemployed)
+unemployment.data$Employed <-as.numeric(unemployment.data$Employed)
+unemployment.data$Unemployment.Rate <- unemployment.data$Unemployment.Rate/100
+unemployment.data$Labor.Force<- unemployment.data$Unemployed/unemployment.data$Unemployment.Rate
+clean.unemploy = unemployment.data
+clean.unemploy <-unemployment.data[,c("State", "Labor.Force", "Unemployed", "Year")]
+
+
+clean.unemploy <- na.omit(clean.unemploy)
+clean.unemploy$State <- as.factor(clean.unemploy$State)
+#Have had issues with group by so saving separately in case everything goes wrong
+df2 <- clean.unemploy %>% group_by(State,Year) %>% 
+  summarise(sum_labor=sum(Labor.Force),
+            sum_emp= sum(Unemployed),
+            .groups = 'drop') %>%
+  as.data.frame()
+clean.unemploy <- df2
+clean.unemploy$State <- abbr2state(clean.unemploy$State)
+clean.unemploy <-clean.unemploy[with(clean.unemploy,order(State,Year)),]
+clean.unemploy$U_Rate = clean.unemploy$sum_emp/clean.unemploy$sum_labor
+#summary(clean.unemploy)
+#count(clean.unemploy$State)
+clean.unemploy$State = as.factor(clean.unemploy$State)
+#count(clean.unemploy$State)
+#View(state.name)
+
+#Missing States and Years for certain state
+#Need to delete from clean.comb
+clean.combine <- subset(clean.combine, State != "Delaware")
+clean.combine <- subset(clean.combine, State != "New Jersey")
+clean.combine <- subset(clean.combine, State != "Connecticut")
+clean.combine <-clean.combine[-c(135:143),]
+clean.combine <-clean.combine[-c(355:358),]
+clean.combine <-clean.combine[-c(471:480),]
+#Reorder so matches other data frame
+clean.combine <-clean.combine[with(clean.combine,order(State,Year)),]
+all.three <- clean.combine
+all.three$unemploy <- clean.unemploy$U_Rate
+all.three$level <- as.factor(ifelse(all.three$income<47338, 'low',
+                             ifelse(all.three$income<62338, 'medium','high')))
+all.three$employ <- as.factor(ifelse(all.three$unemploy<.05, 'ideal','high'))
+```
+
+## Preliminary Data Wrangling and Details
+
+The data for income and crime rate was predominantly state-level data. I removed the entries that were for the entire United States. I also ensured that the years were listed in the same way for both data sets before combining into a single data frame. The unemployment data involved more cleaning and wrangling. The unemployment data was county level. Since you cannot just add percentages, I needed the total unemployed and total workforce. There were many missing entries for total unemployed workers. I used the unemployment rate and total workforce to determine the number unemployed. I omitted missing data and added by state. I then calculated the unemployment rate for each state. I noticed that there were several pieces of missing data in my unemployment data. There was no unemployment data for Delaware, New Jersey, or Connecticut, because those states did not provide the total workforce numbers. I also had to delete years. I converted state abbreviations to full names and reordered to match the combined income and crime data frame.
+
+I noticed that all of the data for income and unemployment were numerical data. To complete ANOVA, I would need categorical data. I created levels for both the income and unemployment data. For the income data, I used 'low' for income less than \$47338, 'medium' for \$47338 to \$62388, and 'high' for \$62388 and above. For unemployment, I used two factors. From a bit of research, I found that under 5% is considered full employment, so under 5% was "ideal" and 5% or more was categorized as 'high.' This enabled me to complete ANOVA and neccessary post-hoc tests.
+
+## Part 1: One Way ANOVA: Crime vs Income
+
+```{r, echo=FALSE}
+#PART 1: Do one way ANOVA using crime rate and income (hints: use aov() and TukeyHSD ())
+one.way.income <- aov(crime ~ level,data = all.three)
+summary(one.way.income)
+TukeyHSD(one.way.income)
+```
+
+**Conclusion:** Because of the low p-value, we would reject the null hypothesis that there is no difference in crime rate based on income and therefore, conclude there is an association between average income and crime rate.
+
+From the post-hoc test, we can conclude that there is not a significant difference in crime rate for middle and high income areas. However, the differences between crime rates in both low income and middle income areas and also, low income and high income areas are statistically significant.
+
+## Part 2: One Way ANOVA: Crime vs Unemployment
+
+```{r, echo=FALSE}
+one.way.unemploy <-aov(crime ~ employ, data = all.three)
+summary(one.way.unemploy)
+TukeyHSD(one.way.unemploy)
+```
+
+**Conclusion:** Because the p-value is less than 0.05, we conclude that there is a statistically significant association between crime and unemployment. The TukeyHSD confirmed this association.
+
+## Part 3: Two Way ANOVA of Crime Rate with Income and Unemployment
+
+#### Two Way ANOVA with no interaction
+
+```{r, echo=FALSE}
+two.way <- aov(crime ~ level + employ, data = all.three)
+summary(two.way)
+TukeyHSD(two.way)
+```
+
+#### Two Way ANOVA with interactions
+
+```{r, echo=FALSE}
+interactions <- aov(crime ~ level*employ, data = all.three)
+summary(interactions)
+
+```
+
+#### Determine the Best Model
+
+```{r, echo=FALSE}
+model.set <- list (one.way.income, one.way.unemploy, two.way, interactions)
+model.names <- c("one.way.inc", "one.way.unem", "two.way", "interactions")
+aictab(model.set, modnames = model.names)
+```
+
+**Conclusion:** Based on the AICc, the interactions model would be the best fit, because it has the lowest value.
+
+#### **Plot the Best Model**
+
+```{r, echo=FALSE}
+par(mfrow = c(2,2))
+plot(interactions)
+```
+
+#### **Plot the Raw Data**
+
+```{r,echo = FALSE, warning=FALSE, error = FALSE, message=FALSE}
+par(mfrow = c(1,1))
+raw.data.plot <- ggplot(all.three, aes(x = level, y = crime, group = employ)) +
+  geom_point(cex = 1.5, pch = 1, position = position_jitter(w = 0.1, h = 0))
+mean.crime.data = all.three %>%
+  group_by(level, employ) %>%
+  summarise(crime = mean(crime))
+raw.data.plot <-raw.data.plot + stat_summary(fun.data = "mean_se", geom = 'errorbar', width = 0.2) +
+  stat_summary(fun.data = 'mean_se', geom = 'pointrange') +
+  geom_point(data = mean.crime.data, aes(x = level, y = crime))
+raw.data.plot <- raw.data.plot +
+  geom_text(data = mean.crime.data, label = mean.crime.data$employ, vjust = -8, size = 5) +
+  facet_wrap(~ employ)
+raw.data.plot <- raw.data.plot + 
+  theme_classic2() + 
+  labs(title = "Crime in response to income and unemployment rate",
+       x = "Income Level",
+       y = "Crime Rate")
+raw.data.plot
+```
+
+#### **Conduct linear regression**
+
+For linear regression, I used the original quantitative variables for income and unemployment rate.
+
+##### **Check for outliers**
+
+```{r, echo=FALSE}
+boxplot(all.three$income, main= 'income')
+boxplot(all.three$crime, main= 'crime')
+boxplot(all.three$unemploy, main = 'unemployment')
+crime.outliers = boxplot(all.three$crime, plot = FALSE)$out
+income.outlier = boxplot(all.three$income,plot = FALSE)$out
+unemploy.outlier = boxplot(all.three$unemploy, plot = FALSE)$out
+```
+
+##### **Remove outliers and check for normality**
+
+```{r, echo=FALSE}
+data_income = all.three[-which(all.three$income %in% income.outlier)]
+data_crime = all.three[-which(data_income$crime %in% crime.outliers)]
+data_unemploy = all.three[-which(data_crime$unemploy %in% unemploy.outlier)]
+new.allthree <- data_unemploy
+#plot to check for normality
+par(mfrow = c(1,3))
+plot(density(new.allthree$income), main = "Density Plot: income", ylab = "Frequency", sub = paste("Skewness", round(e1071::skewness(new.allthree$income), 2)))
+polygon(density(new.allthree$income), col = 'red')
+plot(density(new.allthree$crime), main = "Density Plot: crime", ylab = "Frequency", sub = paste("Skewness", round(e1071::skewness(new.allthree$crime), 2)))
+polygon(density(new.allthree$crime), col = 'red')
+
+plot(density(new.allthree$unemploy), main = "Density Plot: Unemployment", ylab = "Frequency", sub = paste("Skewness", round(e1071::skewness(new.allthree$unemploy), 2)))
+polygon(density(new.allthree$unemploy), col = 'red')
+```
+
+##### **Correlation and Scatterplot for Crime vs Income**
+
+```{r, echo=FALSE}
+cor(new.allthree$income, new.allthree$crime)
+par(mfrow = c(1,1))
+scatter.smooth(x = new.allthree$income, y = new.allthree$crime, main = "crime vs income" )
+```
+
+**Analysis:** The scatterplot does not appear to have significant direction. With a correlation equal to -0.1391, there is a weak association between income and crime rate.
+
+##### **Correlation and Scatterplot for Crime vs Unemployment**
+
+```{r, echo=FALSE}
+cor(new.allthree$unemploy, new.allthree$crime)
+par(mfrow = c(1,1))
+scatter.smooth(x = new.allthree$unemploy, y = new.allthree$crime, main = "crime vs unemployment" )
+```
+
+**Analysis:** The scatterplot does not appear to have significant direction. With a correlation equal to 0.0647, there is a weak association between unemployment rate and crime rate.
+
+##### **Linear Regression for Crime vs Income**
+
+```{r, echo = FALSE}
+lin.income <- lm(crime ~ income, data = new.allthree)
+summary(lin.income)
+AIC(lin.income)
+BIC(lin.income)
+```
+
+AIC = 6941.942
+
+BIC = 6954.822
+
+p-value = 0.00118
+
+**Conclusion**: At the 0.05 significance level, there is a statistically significant association between income and crime rate.
+
+##### **Linear Regression for Crime vs Unemployment**
+
+```{r, echo=FALSE}
+lin.unemploy <- lm(crime ~ unemploy, data = new.allthree)
+summary(lin.unemploy)
+AIC(lin.unemploy)
+BIC(lin.unemploy)
+```
+
+AIC = 6950.042
+
+BIC = 6962.923
+
+p-value = 0.117
+
+**Linear Models Conclusion:** There is not a statistically significant association between unemployment rate and crime rate.
+
+##### **Multiple Linear Regression**
+
+```{r, echo=FALSE}
+mult <- lm(crime ~ income + unemploy, data = new.allthree)
+summary(mult)
+```
+
+**Multiple Linear Regression Conclusion:** Based on the p-value of 0.0041, at the 0.05 significance level, there is a statistically significant association among crime rate vs income and unemployment.
+
+**CONCLUSION:** As stated in the above analyses, when using categorical variables to represent unemployment (ideal and high) and income (low, medium, high), the best model was the two-way ANOVA with interactions. When using the original quantitative data for income and unemployment rate, with outliers removed, the best model to predict crime rate would be the multiple linear regression model, because R-squared for multiple linear regression was slightly higher than the model of crime rate from income alone. There was not a statistically significant association between crime rate and unemployment rate alone.

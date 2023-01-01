@@ -1,0 +1,124 @@
+---
+title: "Shepherd_M4_Lab_DSCI609"
+author: "Emily Shepherd"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+setwd("/Users/burrisfaculty/Desktop/DSCode/DSCI609")
+library(dplyr)
+library(hrbrthemes)
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(plotly)
+library(TSstudio)
+library(forecast)
+library(MLmetrics)
+library(viridisLite)
+library(viridis)
+library(padr)
+library(rmdformats)
+library(recipes)
+crime_raw <- read.csv("Fouryears_all.csv")
+#Create Subset of Data
+crime_used <- crime_raw%>%
+  select(Date,Primary.Type)%>%
+  mutate(Date = ymd_hms(Date) ,Primary.Type = as.factor(Primary.Type))%>%
+  mutate(Date = floor_date(Date, unit = 'hours'))%>%
+  arrange(Date)%>%
+  filter(Date >= "2019-09-01" & Date <= "2021-09-01")
+  
+tail(crime_used, 20)
+head(crime_used,20 )
+
+
+crime_group <- crime_used %>% group_by(Primary.Type)
+crime_counts <- crime_group %>% summarise(Total = n())%>%
+  arrange(-Total)
+```
+
+**Bar Graph of Full Data:**
+
+```{r, include = TRUE}
+#Full Count Data
+ggplot(crime_counts, aes(x = reorder(Primary.Type, Total), y = Total)) + 
+  labs(title = "Crime in Chicago", x = "Crime", y = "Number of Crimes")+
+  geom_bar(fill = 'orange', color = 'black', stat = "identity") +
+  theme_minimal()+
+  coord_flip()
+```
+
+**Bar Graph of Top 5:**
+
+```{r, include = TRUE}
+plot_top5 <- crime_counts%>%
+  head(5) %>%
+  ggplot(aes(x = Total, y = reorder(Primary.Type, Total), text = paste("Crime: ", Primary.Type, "<br>",
+                                                                       "Occurred: ", Total, " times")))+
+  geom_col(aes(fill = Primary.Type), show.legend = FALSE)+
+  scale_fill_viridis(option = "D", discrete = TRUE, direction = 1, begin = 0.9, end = 0.3)+
+  labs(title = "Top 5 Crimes in Chicago", x = "Number of Occurences", y = "Crime")+
+  theme_gray()
+ggplotly(plot_top5,tooltip = 'text')
+```
+
+```{r, include = FALSE}
+
+crime_used <- crime_used%>%ungroup()
+crime_theft <- crime_used %>%
+  filter(Primary.Type == "THEFT")%>%
+  group_by(Date)%>%
+  summarise(Theft = n())
+
+tail(crime_theft,10)
+crime_theft <- crime_theft %>%
+  pad(start_val = ymd_hms("2019-09-01 00:00:00"), end_val = ymd_hms("2021-09-01 00:00:00"))%>%
+  mutate(Theft = replace_na(Theft, 0))
+anyNA(crime_theft)
+
+theft_train <- crime_theft
+
+#theft_test <- tail(crime_theft, 365)
+theft_ts <- ts(crime_theft$Theft, frequency = 24)
+theft_plot <- theft_train %>%ungroup()%>%
+  ggplot(aes(x = Date, y = Theft))+
+  geom_line(aes(color = Theft))+
+  scale_x_datetime(name = "Date", date_breaks = "2 year")+
+  scale_y_continuous(breaks = seq(0,400,100))+
+  theme_minimal()+
+  labs(title = "Chicago Thefts", subtitle = "2019 - 2021")
+ggplotly(theft_plot)
+#Decompose
+theft_ts_dec <- theft_ts %>%
+  tail(365)%>%
+  decompose()
+```
+
+**Time Series Decomposition Plot:**
+
+```{r, include = TRUE}
+theft_ts_dec %>%
+  autoplot()
+```
+
+``` {r, include = FALSE}
+#Create Multi Seasonal Time Series
+theft_multi <- msts(theft_train$Theft, seasonal.periods = c(24, #daily
+                                                      24*7, #weekly
+                                                      24*30)) #monthly
+#Decompose MSTS Object
+theft_multi_dec <- theft_multi%>%
+  mstl()
+```
+**Time Series Multi Seasonal Time Series Decomposition Plot:**
+```{r, include = TRUE}
+theft_multi_dec %>%
+  tail(365)%>%
+  autoplot()
+```
